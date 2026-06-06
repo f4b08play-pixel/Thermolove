@@ -1,0 +1,1428 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="HEAT">
+<meta name="theme-color" content="#0a0004">
+<title>HEAT — jeu de couple</title>
+
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+  :root {
+    --red:    #FF1020;
+    --red2:   #CC0818;
+    --rose:   #C08A7A;
+    --dark:   #0a0004;
+    --card:   rgba(255,255,255,0.04);
+    --border: rgba(255,255,255,0.07);
+    --text:   #ffffff;
+    --muted:  rgba(255,255,255,0.35);
+    --faint:  rgba(255,255,255,0.12);
+  }
+
+  html, body {
+    height: 100%; width: 100%;
+    background: var(--dark);
+    color: var(--text);
+    font-family: 'Space Grotesk', sans-serif;
+    overflow: hidden;
+    -webkit-user-select: none; user-select: none;
+    touch-action: manipulation;
+  }
+
+  #app {
+    position: fixed; inset: 0;
+    display: flex; flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* ── AMBIENT BACKGROUND ── */
+  #ambient {
+    position: fixed; inset: 0; z-index: 0;
+    transition: background 1.2s ease;
+    pointer-events: none;
+  }
+  #ambient::after {
+    content: '';
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse at center, transparent 25%, rgba(0,0,0,0.65) 100%);
+  }
+
+  /* Grain */
+  #grain {
+    position: fixed; inset: 0; z-index: 1;
+    opacity: 0.055; pointer-events: none;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='1'/%3E%3C/svg%3E");
+    background-size: 128px;
+    mix-blend-mode: overlay;
+  }
+
+  /* ── SCREENS ── */
+  .screen {
+    position: fixed; inset: 0; z-index: 10;
+    display: flex; flex-direction: column;
+    transition: opacity 0.4s ease, transform 0.4s ease;
+    overflow: hidden;
+  }
+  .screen.hidden { opacity: 0; pointer-events: none; transform: scale(0.97); }
+
+  /* ── SAFE AREAS ── */
+  .safe-top    { padding-top: max(48px, env(safe-area-inset-top, 48px)); }
+  .safe-bottom { padding-bottom: max(28px, env(safe-area-inset-bottom, 28px)); }
+
+  /* ── TYPOGRAPHY ── */
+  .serif    { font-family: 'DM Serif Display', serif; }
+  .mono     { font-family: 'Space Mono', monospace; }
+  .label    { font-size: 11px; letter-spacing: 2.5px; text-transform: uppercase; font-weight: 700; color: var(--muted); font-family: 'Space Mono', monospace; }
+
+  /* ── BUTTONS ── */
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    border: none; cursor: pointer; font-family: inherit;
+    transition: transform 0.15s ease, opacity 0.15s ease;
+    -webkit-appearance: none; appearance: none;
+  }
+  .btn:active { transform: scale(0.94); }
+
+  .btn-primary {
+    background: linear-gradient(135deg, #FF4030, #CC0818);
+    color: #fff; border-radius: 999px;
+    font-size: 16px; font-weight: 700; letter-spacing: 2px;
+    padding: 0 36px; height: 60px; width: 100%;
+    box-shadow: 0 8px 32px rgba(255,16,32,0.4);
+    position: relative; overflow: hidden;
+  }
+  .btn-primary::before {
+    content: ''; position: absolute;
+    inset: 0; background: linear-gradient(135deg, rgba(255,255,255,0.18), transparent 60%);
+    pointer-events: none;
+  }
+
+  .btn-ghost {
+    background: rgba(255,255,255,0.06);
+    color: var(--muted); border-radius: 999px;
+    font-size: 13px; font-weight: 600;
+    padding: 0 24px; height: 44px;
+    border: 1px solid var(--border);
+  }
+
+  .btn-accent {
+    border-radius: 999px;
+    font-size: 13px; font-weight: 700;
+    padding: 0 28px; height: 46px;
+    color: #000;
+  }
+
+  /* ── CARDS ── */
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 18px; padding: 16px;
+  }
+
+  /* ── SETUP SCREEN ── */
+  #setup-screen {
+    display: flex; flex-direction: column;
+  }
+
+  .tab-bar {
+    display: flex; gap: 4px;
+    padding: 0 24px;
+    margin-bottom: 0;
+  }
+  .tab-pill {
+    flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;
+    padding: 10px; border-radius: 10px;
+    font-size: 13px; font-weight: 600; cursor: pointer;
+    color: var(--muted); background: transparent;
+    border: none; transition: all 0.25s ease;
+    font-family: 'Space Grotesk', sans-serif;
+  }
+  .tab-pill.active { color: white; background: rgba(255,255,255,0.10); }
+
+  .tab-content { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
+  .tab-pane { display: none; flex: 1; flex-direction: column; animation: fadeSlide 0.3s ease; }
+  .tab-pane.active { display: flex; }
+
+  @keyframes fadeSlide {
+    from { opacity: 0; transform: translateX(12px); }
+    to   { opacity: 1; transform: none; }
+  }
+
+  /* HOME TAB */
+  #home-tab {
+    align-items: center; justify-content: space-between;
+    padding: 24px 36px;
+  }
+
+  .logo-ring {
+    width: 88px; height: 88px; border-radius: 50%;
+    border: 1px solid rgba(255,16,32,0.3);
+    display: flex; align-items: center; justify-content: center;
+    position: relative;
+    animation: ringPulse 2.4s ease-in-out infinite;
+  }
+  @keyframes ringPulse {
+    0%,100% { box-shadow: 0 0 8px rgba(255,16,32,0.15); border-color: rgba(255,16,32,0.2); }
+    50%      { box-shadow: 0 0 28px rgba(255,16,32,0.35); border-color: rgba(255,16,32,0.5); }
+  }
+  .logo-ring svg { width: 38px; height: 38px; }
+
+  .title-block { text-align: center; }
+  .title-heat {
+    font-size: 72px; font-weight: 900; letter-spacing: 16px;
+    background: linear-gradient(135deg, #fff 30%, #FF6050);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    background-clip: text; font-family: 'Space Grotesk', sans-serif;
+    line-height: 1;
+  }
+  .title-sub { font-size: 12px; color: rgba(255,255,255,0.28); letter-spacing: 5px; margin-top: 6px; font-style: italic; font-family: 'DM Serif Display', serif; }
+
+  /* Temp scale preview */
+  .scale-preview { width: 100%; }
+  .scale-track { position: relative; height: 3px; background: rgba(255,255,255,0.06); border-radius: 99px; }
+  .scale-fill {
+    position: absolute; left: 0; top: 0; height: 100%; border-radius: 99px;
+    background: linear-gradient(90deg, #C08A7A, #D05040, #E02040, #FF1020);
+    transition: width 0.3s ease;
+    width: 42%;
+  }
+  .scale-dot {
+    position: absolute; top: -2px; width: 7px; height: 7px;
+    background: #FF1020; border-radius: 50%;
+    box-shadow: 0 0 10px rgba(255,16,32,0.8);
+    transform: translateX(-50%);
+    transition: left 0.3s ease;
+    left: 42%;
+  }
+  .scale-labels { display: flex; justify-content: space-between; margin-top: 8px; }
+  .scale-labels span { font-size: 10px; color: rgba(255,255,255,0.2); font-family: 'Space Mono', monospace; }
+
+  .player-hint { display: flex; align-items: center; gap: 6px; color: rgba(255,255,255,0.18); font-size: 12px; justify-content: center; font-family: 'Space Mono', monospace; }
+
+  /* SETTINGS TAB */
+  #settings-tab {
+    overflow-y: auto; -webkit-overflow-scrolling: touch;
+    padding: 20px 22px 40px;
+  }
+
+  .section-header { margin-bottom: 12px; }
+  .section-header h2 { font-size: 21px; font-weight: 700; margin-bottom: 4px; }
+  .section-header p { font-size: 12px; color: var(--muted); line-height: 1.5; }
+
+  .preset-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 24px; }
+  .preset-btn {
+    background: rgba(255,255,255,0.05); border: 1px solid var(--border);
+    border-radius: 12px; padding: 12px 6px; text-align: center;
+    cursor: pointer; font-family: 'Space Grotesk', sans-serif;
+    transition: all 0.2s ease; display: flex; flex-direction: column; align-items: center; gap: 6px;
+  }
+  .preset-btn:active { transform: scale(0.95); }
+  .preset-btn svg { width: 18px; height: 18px; color: rgba(255,255,255,0.55); }
+  .preset-btn span { font-size: 10px; font-weight: 600; color: rgba(255,255,255,0.4); line-height: 1.3; }
+
+  .cat-header { display: flex; align-items: center; justify-content: space-between; margin: 16px 0 8px; }
+  .cat-count { font-size: 11px; font-weight: 700; color: rgba(255,255,255,0.25); font-family: 'Space Mono', monospace; }
+
+  .event-row {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 12px; border-radius: 14px;
+    background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.04);
+    margin-bottom: 6px; cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  .event-row.enabled { background: rgba(255,255,255,0.05); }
+  .event-row:active { transform: scale(0.98); }
+
+  .event-icon {
+    width: 38px; height: 38px; border-radius: 50%; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .event-icon svg { width: 16px; height: 16px; }
+
+  .event-info { flex: 1; min-width: 0; }
+  .event-title { font-size: 13px; font-weight: 600; margin-bottom: 2px; color: rgba(255,255,255,0.3); }
+  .event-row.enabled .event-title { color: white; }
+  .event-desc { font-size: 10px; color: rgba(255,255,255,0.2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .event-row.enabled .event-desc { color: rgba(255,255,255,0.38); }
+
+  .spice-dots { display: flex; gap: 3px; flex-shrink: 0; }
+  .spice-dot { width: 4px; height: 4px; border-radius: 50%; background: rgba(255,255,255,0.1); }
+
+  .toggle-track {
+    width: 34px; height: 19px; border-radius: 99px;
+    background: rgba(255,255,255,0.07); position: relative; flex-shrink: 0;
+    transition: background 0.25s ease;
+  }
+  .toggle-thumb {
+    position: absolute; top: 2.5px; left: 2.5px;
+    width: 14px; height: 14px; border-radius: 50%;
+    background: rgba(255,255,255,0.25);
+    transition: transform 0.25s cubic-bezier(.34,1.56,.64,1), background 0.25s ease;
+  }
+  .event-row.enabled .toggle-thumb { transform: translateX(15px); }
+
+  /* ── GAME SCREEN ── */
+  #game-screen {
+    display: flex; flex-direction: column;
+  }
+
+  /* TOP BAR */
+  .top-bar {
+    display: flex; align-items: flex-start; justify-content: space-between;
+    padding: 0 20px; padding-top: max(52px, env(safe-area-inset-top, 52px));
+    padding-bottom: 12px;
+  }
+
+  .temp-display { display: flex; flex-direction: column; gap: 8px; }
+  .temp-number {
+    font-size: 52px; font-weight: 900; letter-spacing: -1px;
+    font-family: 'Space Grotesk', sans-serif; line-height: 1;
+    transition: color 0.4s ease;
+  }
+  .temp-unit { font-size: 20px; font-weight: 700; color: rgba(255,255,255,0.45); vertical-align: super; margin-left: 2px; }
+
+  .seg-bar { display: flex; gap: 5px; align-items: center; }
+  .seg {
+    width: 22px; height: 4px; border-radius: 2px;
+    background: rgba(255,255,255,0.08); overflow: hidden; position: relative;
+  }
+  .seg-fill {
+    position: absolute; left: 0; top: 0; height: 100%;
+    border-radius: 2px; transition: width 0.35s ease;
+  }
+
+  .badges { display: flex; flex-direction: column; gap: 6px; align-items: flex-end; }
+  .badge {
+    display: flex; align-items: center; gap: 5px;
+    padding: 5px 10px; border-radius: 99px;
+    font-size: 10px; font-weight: 900; font-family: 'Space Mono', monospace;
+    border: 1px solid; animation: badgeIn 0.3s ease;
+  }
+  @keyframes badgeIn { from { opacity:0; transform: scale(0.8); } to { opacity:1; transform:none; } }
+  .badge svg { width: 10px; height: 10px; }
+
+  .close-btn {
+    background: rgba(255,255,255,0.07); border: none;
+    width: 36px; height: 36px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; margin-top: 4px;
+    color: rgba(255,255,255,0.4); transition: opacity 0.2s;
+  }
+  .close-btn:active { opacity: 0.5; }
+  .close-btn svg { width: 14px; height: 14px; }
+
+  /* REWARD ZONE */
+  .reward-zone { flex: 1; display: flex; align-items: center; justify-content: center; padding: 0 20px; }
+
+  .reward-card { display: flex; flex-direction: column; align-items: center; gap: 20px; animation: rewardIn 0.5s cubic-bezier(.34,1.4,.64,1); }
+  @keyframes rewardIn { from { opacity:0; transform: scale(0.85) translateY(20px); } to { opacity:1; transform: none; } }
+
+  .reward-visual {
+    width: 200px; height: 200px; border-radius: 24px;
+    display: flex; align-items: center; justify-content: center;
+    position: relative; overflow: hidden;
+  }
+  .reward-visual svg { width: 64px; height: 64px; }
+  .reward-intensity { position: absolute; bottom: 10px; right: 10px; display: flex; gap: 4px; }
+  .intensity-dot { width: 6px; height: 6px; border-radius: 50%; }
+
+  .reward-text { text-align: center; }
+  .reward-label { font-size: 23px; font-weight: 600; font-family: 'DM Serif Display', serif; font-style: italic; margin-bottom: 6px; line-height: 1.2; }
+  .reward-desc { font-size: 13px; color: rgba(255,255,255,0.42); line-height: 1.5; }
+
+  .timer-badge {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 6px 14px; border-radius: 99px; margin-top: 10px;
+    font-family: 'Space Mono', monospace; font-size: 12px; font-weight: 700;
+    border: 1px solid;
+  }
+  .timer-badge svg { width: 12px; height: 12px; }
+  .timer-done-btn {
+    width: 20px; height: 20px; border-radius: 50%; border: none;
+    font-size: 10px; font-weight: 900; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(255,255,255,0.08); color: white;
+    transition: transform 0.15s;
+  }
+  .timer-done-btn:active { transform: scale(0.9); }
+
+  .idle-prompt { text-align: center; color: rgba(255,255,255,0.18); padding: 20px; }
+  .idle-prompt svg { width: 44px; height: 44px; margin-bottom: 14px; opacity: 0.5; animation: idlePulse 2.2s ease-in-out infinite; }
+  @keyframes idlePulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.08)} }
+  .idle-prompt p { font-size: 13px; font-style: italic; font-family: 'DM Serif Display', serif; line-height: 1.7; }
+
+  /* TEASER / DEBT */
+  .bottom-info { padding: 0 20px; display: flex; flex-direction: column; gap: 8px; }
+
+  .debt-banner {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 14px; border-radius: 12px;
+    background: rgba(192,96,160,0.1); border: 1px solid rgba(192,96,160,0.25);
+    animation: slideUp 0.3s ease;
+  }
+  .debt-banner svg { width: 14px; height: 14px; color: #C060A0; flex-shrink: 0; }
+  .debt-text-title { font-size: 12px; font-weight: 700; color: rgba(255,255,255,0.8); font-family: 'Space Mono', monospace; }
+  .debt-text-sub { font-size: 11px; color: rgba(255,255,255,0.4); }
+
+  .next-teaser {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 14px; border-radius: 14px;
+    background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.06);
+    animation: slideUp 0.3s ease;
+  }
+  @keyframes slideUp { from { opacity:0; transform: translateY(10px); } to { opacity:1; transform:none; } }
+
+  .mini-arc { width: 28px; height: 28px; flex-shrink: 0; }
+  .next-info { flex: 1; }
+  .next-pre { font-size: 10px; color: rgba(255,255,255,0.28); font-family: 'Space Mono', monospace; letter-spacing: 1.5px; text-transform: uppercase; }
+  .next-label { font-size: 12px; font-weight: 600; color: rgba(255,255,255,0.5); margin-top: 2px; }
+  .next-temp { font-size: 13px; font-weight: 700; font-family: 'Space Mono', monospace; }
+
+  /* PLAYER BUTTONS */
+  .player-row {
+    display: flex; align-items: center; justify-content: center; gap: 12px;
+    padding: 0 20px; padding-bottom: max(36px, env(safe-area-inset-bottom, 36px));
+    padding-top: 12px;
+  }
+
+  .player-btn {
+    flex: 1; display: flex; flex-direction: column; align-items: center; gap: 8px;
+    cursor: pointer; background: none; border: none; padding: 0;
+    -webkit-appearance: none; font-family: inherit;
+    transition: opacity 0.25s ease;
+    position: relative;
+  }
+  .player-btn.inactive { opacity: 0.35; }
+  .player-btn:active .player-circle { transform: scale(0.91); }
+
+  .player-dot { width: 8px; height: 8px; border-radius: 50%; background: rgba(255,255,255,0.15); transition: all 0.3s ease; }
+  .player-btn.active-player .player-dot { background: var(--red); }
+
+  .player-circle {
+    width: 78px; height: 78px; border-radius: 50%;
+    background: rgba(255,255,255,0.05); border: 1.5px solid rgba(255,255,255,0.09);
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.3s ease, transform 0.12s ease;
+  }
+  .player-btn.active-player .player-circle { background: rgba(255,16,32,0.16); border-color: rgba(255,16,32,0.5); }
+  .player-circle svg { width: 28px; height: 28px; color: rgba(255,255,255,0.22); transition: color 0.3s; }
+  .player-btn.active-player .player-circle svg { color: var(--red); }
+
+  .player-name { font-size: 11px; font-weight: 600; color: rgba(255,255,255,0.28); letter-spacing: 1.5px; text-transform: uppercase; font-family: 'Space Mono', monospace; transition: color 0.3s; }
+  .player-btn.active-player .player-name { color: white; }
+  .player-score { font-size: 10px; color: rgba(255,255,255,0.22); }
+
+  .delta-pop {
+    position: absolute; top: -10px; left: 50%; transform: translateX(-50%);
+    font-size: 16px; font-weight: 900; pointer-events: none;
+    animation: deltaPop 1.3s ease forwards; white-space: nowrap;
+    font-family: 'Space Grotesk', sans-serif;
+  }
+  @keyframes deltaPop {
+    0%   { opacity:1; transform: translateX(-50%) translateY(0); }
+    70%  { opacity:1; }
+    100% { opacity:0; transform: translateX(-50%) translateY(-60px); }
+  }
+
+  .flame-center { display: flex; align-items: center; justify-content: center; width: 50px; flex-shrink: 0; }
+  .flame-svg { transition: all 0.6s ease; }
+
+  /* SOLO button */
+  .solo-btn {
+    width: 84px; height: 84px; border-radius: 50%; border: none; cursor: pointer;
+    position: relative; display: flex; align-items: center; justify-content: center;
+    background: rgba(255,16,32,0.18); -webkit-appearance: none;
+    transition: transform 0.12s ease;
+  }
+  .solo-btn::before {
+    content: ''; position: absolute; inset: -8px; border-radius: 50%;
+    border: 1.5px solid rgba(255,16,32,0.35);
+    animation: soloGlow 1.8s ease-in-out infinite;
+  }
+  @keyframes soloGlow { 0%,100%{opacity:0.4;transform:scale(1)} 50%{opacity:1;transform:scale(1.06)} }
+  .solo-btn:active { transform: scale(0.91); }
+  .solo-btn svg { width: 28px; height: 28px; color: var(--red); }
+
+  /* CRITICAL FLASH */
+  #crit-flash {
+    position: fixed; inset: 0; z-index: 5;
+    background: rgba(255,0,0,0.12); pointer-events: none;
+    opacity: 0; transition: opacity 0.08s;
+  }
+  #crit-flash.show { opacity: 1; }
+
+  /* ── OVERLAY SCREENS ── */
+  .overlay {
+    position: fixed; inset: 0; z-index: 50;
+    background: rgba(0,0,0,0.72);
+    display: flex; align-items: center; justify-content: center;
+    padding: 24px;
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.3s ease;
+  }
+  .overlay.show { opacity: 1; pointer-events: all; }
+
+  .overlay-inner {
+    width: 100%; max-width: 380px;
+    transform: scale(0.88); transition: transform 0.35s cubic-bezier(.34,1.4,.64,1);
+  }
+  .overlay.show .overlay-inner { transform: scale(1); }
+
+  /* EVENT CARD OVERLAY */
+  .event-card-box {
+    border-radius: 28px; padding: 30px 24px;
+    background: rgb(26,13,26);
+    border: 1.5px solid rgba(255,255,255,0.08);
+    display: flex; flex-direction: column; align-items: center; gap: 20px;
+    text-align: center;
+  }
+  .event-who { font-size: 13px; font-weight: 600; color: rgba(255,255,255,0.5); margin-bottom: 2px; }
+  .event-tag { font-size: 10px; letter-spacing: 3px; color: rgba(255,255,255,0.28); font-family: 'Space Mono', monospace; }
+  .event-icon-wrap {
+    width: 74px; height: 74px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .event-icon-wrap svg { width: 32px; height: 32px; }
+  .event-title-text { font-size: 25px; font-weight: 700; line-height: 1.2; }
+  .event-desc-text { font-size: 14px; font-style: italic; font-family: 'DM Serif Display', serif; color: rgba(255,255,255,0.52); line-height: 1.6; }
+
+  /* REWARD TIMER OVERLAY */
+  .timer-overlay-box { display: flex; flex-direction: column; align-items: center; gap: 24px; text-align: center; }
+  .timer-circle { position: relative; width: 160px; height: 160px; }
+  .timer-circle svg { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); }
+  .timer-circle-nums { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  .timer-digits { font-size: 46px; font-weight: 900; font-family: 'Space Grotesk', sans-serif; line-height: 1; }
+  .timer-label { font-size: 10px; color: rgba(255,255,255,0.3); letter-spacing: 2px; font-family: 'Space Mono', monospace; text-transform: uppercase; margin-top: 4px; }
+  .timer-btns { display: flex; gap: 12px; }
+
+  /* EXPLOSION OVERLAY */
+  .explosion-box { display: flex; flex-direction: column; align-items: center; gap: 22px; text-align: center; }
+  .explosion-emoji { font-size: 78px; animation: explosionPop 0.5s cubic-bezier(.34,1.4,.64,1); }
+  @keyframes explosionPop { from{transform:scale(0.2)} to{transform:scale(1)} }
+  .explosion-title { font-size: 36px; font-weight: 900; letter-spacing: 1px; }
+  .explosion-sub { font-size: 14px; font-style: italic; font-family: 'DM Serif Display', serif; color: rgba(255,255,255,0.48); line-height: 1.6; }
+  .scores-row { display: flex; gap: 16px; }
+  .score-card { padding: 10px 18px; background: rgba(255,255,255,0.05); border-radius: 12px; text-align: center; }
+  .score-name { font-size: 12px; font-weight: 700; font-family: 'Space Mono', monospace; color: rgba(255,255,255,0.7); }
+  .score-val { font-size: 11px; color: rgba(255,255,255,0.33); margin-top: 3px; }
+  .explosion-btns { display: flex; flex-direction: column; gap: 10px; align-items: center; width: 100%; }
+
+  /* Util */
+  .flex-col { display: flex; flex-direction: column; }
+  .flex-row { display: flex; flex-direction: row; }
+  .gap-4 { gap: 4px; }
+  .gap-8 { gap: 8px; }
+  .items-center { align-items: center; }
+  .justify-center { justify-content: center; }
+  .w-full { width: 100%; }
+  .text-center { text-align: center; }
+
+  /* Scrollbar hidden */
+  ::-webkit-scrollbar { display: none; }
+</style>
+</head>
+<body>
+
+<div id="ambient"></div>
+<div id="grain"></div>
+<div id="crit-flash"></div>
+
+<!-- ══════════════════════════════════════════ -->
+<!-- SETUP SCREEN                              -->
+<!-- ══════════════════════════════════════════ -->
+<div id="setup-screen" class="screen">
+  <div class="tab-bar safe-top" style="padding-bottom:12px">
+    <button class="tab-pill active" onclick="switchTab(0)" id="tab0">🔥 Jouer</button>
+    <button class="tab-pill" onclick="switchTab(1)" id="tab1">⚙️ Paramètres</button>
+  </div>
+
+  <div class="tab-content">
+    <!-- HOME TAB -->
+    <div class="tab-pane active flex-col items-center" id="home-tab" style="justify-content:space-between;padding:20px 36px 0">
+
+      <div style="display:flex;flex-direction:column;align-items:center;gap:14px;margin-top:8px">
+        <div class="logo-ring">
+          <svg viewBox="0 0 24 24" fill="none" stroke="url(#lg1)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <defs><linearGradient id="lg1" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#FF6050"/><stop offset="100%" stop-color="#FF1020"/></linearGradient></defs>
+            <path d="M9 12c0-1.105.895-2 2-2s2 .895 2 2c0 3-2 5-2 5S9 15 9 12z"/>
+            <path d="M12 2C8 2 5 5 5 9c0 2.8 1.5 5.2 3.7 6.5C9.8 16.4 11 17.8 11 20h2c0-2.2 1.2-3.6 2.3-4.5C17.5 14.2 19 11.8 19 9c0-4-3-7-7-7z"/>
+          </svg>
+        </div>
+        <div class="title-block">
+          <div class="title-heat">HEAT</div>
+          <div class="title-sub">jeu de couple</div>
+        </div>
+      </div>
+
+      <div class="scale-preview" style="padding:0 4px">
+        <div class="scale-track" id="scale-track">
+          <div class="scale-fill" id="scale-fill"></div>
+          <div class="scale-dot" id="scale-dot"></div>
+        </div>
+        <div class="scale-labels">
+          <span>0°</span><span>250°</span><span>500°</span><span>750°</span><span>1000°</span>
+        </div>
+      </div>
+
+      <div style="width:100%;display:flex;flex-direction:column;gap:16px;padding-bottom:max(44px,env(safe-area-inset-bottom,44px))">
+        <button class="btn btn-primary" onclick="startGame()" style="font-size:17px;letter-spacing:3px">
+          🔥 DÉMARRER
+        </button>
+        <div class="player-hint">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
+          <span id="player-names-hint">Morgane &amp; Fabien</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- SETTINGS TAB -->
+    <div class="tab-pane" id="settings-tab">
+      <div class="section-header">
+        <h2>Cartes Événements</h2>
+        <p>Choisissez quelles cartes peuvent apparaître pendant la partie.</p>
+      </div>
+
+      <div style="margin-bottom:20px">
+        <div class="label" style="margin-bottom:10px">Préréglages rapides</div>
+        <div class="preset-grid">
+          <div class="preset-btn" onclick="applyPreset('mechanics')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+            <span>Mécaniques seules</span>
+          </div>
+          <div class="preset-btn" onclick="applyPreset('all')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="20 6 9 17 4 12"/></svg>
+            <span>Tout activer</span>
+          </div>
+          <div class="preset-btn" onclick="applyPreset('challenges')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+            <span>Défis only</span>
+          </div>
+        </div>
+      </div>
+
+      <div id="event-list"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════ -->
+<!-- GAME SCREEN                               -->
+<!-- ══════════════════════════════════════════ -->
+<div id="game-screen" class="screen hidden">
+  <div class="top-bar">
+    <div class="temp-display">
+      <div>
+        <span class="temp-number" id="temp-num">—</span>
+        <span class="temp-unit" id="temp-unit" style="display:none">°C</span>
+      </div>
+      <div class="seg-bar" id="seg-bar"></div>
+    </div>
+    <div class="badges" id="badges">
+      <button class="close-btn" onclick="resetToSetup()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <div class="reward-zone" id="reward-zone">
+    <div class="idle-prompt">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round">
+        <path d="M12 2C8 2 5 5 5 9c0 2.8 1.5 5.2 3.7 6.5C9.8 16.4 11 17.8 11 20h2c0-2.2 1.2-3.6 2.3-4.5C17.5 14.2 19 11.8 19 9c0-4-3-7-7-7z"/>
+      </svg>
+      <p>Chaque tap fait monter la température.<br>Pas que le mercure.</p>
+    </div>
+  </div>
+
+  <div class="bottom-info" id="bottom-info"></div>
+
+  <div class="player-row" id="player-row"></div>
+</div>
+
+<!-- ══════════════════════════════════════════ -->
+<!-- OVERLAYS                                  -->
+<!-- ══════════════════════════════════════════ -->
+
+<!-- Event Card -->
+<div class="overlay" id="event-overlay">
+  <div class="overlay-inner">
+    <div class="event-card-box" id="event-card-box">
+      <!-- filled by JS -->
+    </div>
+  </div>
+</div>
+
+<!-- Reward Timer -->
+<div class="overlay" id="timer-overlay">
+  <div class="overlay-inner">
+    <div class="timer-overlay-box" id="timer-overlay-box">
+      <!-- filled by JS -->
+    </div>
+  </div>
+</div>
+
+<!-- Explosion -->
+<div class="overlay" id="explosion-overlay">
+  <div class="overlay-inner">
+    <div class="explosion-box" id="explosion-box">
+      <!-- filled by JS -->
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+// DATA
+// ═══════════════════════════════════════════════════════════════
+
+const SEG_COLORS = ['#C08A7A','#C87060','#D05848','#D04040','#D03050','#D82040','#E01830','#E81020','#F00818','#FF1020'];
+
+const ACCENT_BY_INTENSITY = ['','#C08A7A','#D05040','#D03050','#E02040','#FF1020'];
+
+const REWARDS = [
+  { threshold:40,  label:"Massage nuque & épaules",         sublabel:"Les mains d'abord…",               description:"Recompense pour celui qui l'a obtenu",                                               intensity:1, isSecret:false, timerDuration:180 },
+  { threshold:90,  label:"Baisers lents dans le cou",        sublabel:"Lèvres humides et souffle chaud",   description:"Il/elle mordille doucement, te fait frissonner.",                                    intensity:1, isSecret:false, timerDuration:30  },
+  { threshold:140, label:"Massage dos complet",              sublabel:"On descend…",                        description:"Les pouces longent la colonne. Chaque nœud défait.",                                intensity:2, isSecret:false, timerDuration:90  },
+  { threshold:150, label:"Mordre la nuque",                  sublabel:"Juste assez fort.",                  description:"Sentir les dents. Pas encore les griffes.",                                          intensity:2, isSecret:false, timerDuration:null },
+  { threshold:250, label:"On enlève le haut",                sublabel:"On fait monter l'excitation",        description:"Si la lingerie est belle, elle reste sur place !",                                   intensity:2, isSecret:false, timerDuration:null },
+  { threshold:250, label:"On enlève le bas",                 sublabel:"Mais on garde ses sous-vêtements",   description:"Les deux. Simultanément. Mais pas trop vite.",                                       intensity:2, isSecret:false, timerDuration:null },
+  { threshold:320, label:"Passage sous la culotte autorisé", sublabel:"On fait monter la température",      description:"Un, deux, trois doigts",                                                            intensity:3, isSecret:false, timerDuration:120 },
+  { threshold:400, label:"Cunnilingus / Fellation sensuelle",sublabel:"Langue lente et gourmande",          description:"Il/elle te lèche comme si tu étais le meilleur dessert du monde.",                   intensity:3, isSecret:true,  timerDuration:90  },
+  { threshold:480, label:"On prend ses deux mains",          sublabel:"On utilise toutes ses capacités",    description:"Aucune zone interdite. Aucune hésitation.",                                          intensity:3, isSecret:false, timerDuration:120 },
+  { threshold:550, label:"Sexe lent en missionnaire profond",sublabel:"Yeux dans les yeux",                 description:"Pénétration lente et profonde, à chaque coup de reins il/elle te regarde jouir.",    intensity:3, isSecret:false, timerDuration:180 },
+  { threshold:660, label:"Prise par derrière",               sublabel:"On attrape les cheveux",             description:"Claques sur les fesses autorisées.",                                                intensity:4, isSecret:true,  timerDuration:null },
+  { threshold:730, label:"Les yeux bandés",                  sublabel:"Imagine moi mais ne me vois pas",    description:"Poignets attachés, bandeau sur les yeux, jouets vibrants… tu ne décides plus de rien.",intensity:5, isSecret:true,  timerDuration:300 },
+  { threshold:800, label:"Position choisie ensemble",        sublabel:"Vous décidez.",                      description:"Celle que vous aimez le plus. Prenez votre temps.",                                  intensity:4, isSecret:true,  timerDuration:null },
+  { threshold:870, label:"Anal",                             sublabel:"Le dernier tabou",                   description:"Préparation puis pénétration lente.",                                                intensity:4, isSecret:true,  timerDuration:600 },
+  { threshold:930, label:"Fantasme le plus sombre",          sublabel:"Dis-le. Fais-le.",                   description:"Pas de jugement. Pas de retenue. Ce soir seulement.",                               intensity:5, isSecret:true,  timerDuration:null },
+  { threshold:970, label:"Nuit sans règles",                 sublabel:"Tout est permis.",                   description:"Tout ce que vous n'avez jamais osé. En une seule nuit.",                             intensity:5, isSecret:true,  timerDuration:null },
+  { threshold:990, label:"Le Grand Final",                   sublabel:"L'apothéose absolue.",               description:"Tout ce que vous avez débloqué. En même temps. Sans retenue.",                       intensity:5, isSecret:true,  timerDuration:null },
+];
+
+const EVENT_KINDS = [
+  { id:'doubleBet',     category:'Mécaniques',        spiceLevel:1, title:'Double Mise',          description:'Le prochain tap fait monter le double.',                                  icon:'⬆️', color:'#E87020' },
+  { id:'freeze',        category:'Mécaniques',        spiceLevel:1, title:'Gel du Temps',          description:'Pas de refroidissement pendant 20 secondes.',                             icon:'❄️', color:'#5090D0' },
+  { id:'forceCool',     category:'Mécaniques',        spiceLevel:1, title:'Coup de Froid',         description:'−150° immédiats. Ça refroidit vite.',                                     icon:'💨', color:'#60B0D0' },
+  { id:'debtStack',     category:'Mécaniques',        spiceLevel:2, title:'Dette Cumulée',          description:'Toutes les récompenses passées sont dues maintenant.',                    icon:'📋', color:'#C060A0' },
+  { id:'joker',         category:'Mécaniques',        spiceLevel:1, title:'Joker',                  description:'Tu passes cette récompense… mais +120° immédiat.',                        icon:'❓', color:'#80C060' },
+  { id:'reversal',      category:'Mécaniques',        spiceLevel:1, title:'Inversion',              description:"L'autre joueur tape à ta place ce tour.",                                 icon:'↔️', color:'#D0A020' },
+  { id:'stripOne',      category:'Défis & Challenges',spiceLevel:3, title:'Un Vêtement Tombe',     description:'Un vêtement au choix doit tomber avant de retaper.',                       icon:'👕', color:'#E87040' },
+  { id:'massageMinute', category:'Défis & Challenges',spiceLevel:3, title:'1 Minute de Massage',   description:'60 secondes de massage sur la zone choisie. Puis on reprend.',              icon:'✨', color:'#A070D0' },
+  { id:'confessionTime',category:'Défis & Challenges',spiceLevel:4, title:'Confession Intime',     description:"Dis à voix haute ce que tu voudrais qu'il/elle te fasse ce soir.",          icon:'💬', color:'#D06090' },
+  { id:'blindTap',      category:'Défis & Challenges',spiceLevel:2, title:'Les Yeux Fermés',       description:"Ce tour, l'autre joueur ferme les yeux. Guidez ses mains.",                icon:'👁️', color:'#6080C0' },
+  { id:'dareOrDare',    category:'Défis & Challenges',spiceLevel:2, title:'Gage ou Gage',           description:'Choisir entre : embrasser le cou ou poser les mains où vous voulez.',     icon:'🎲', color:'#D09020' },
+  { id:'slowKiss',      category:'Défis & Challenges',spiceLevel:2, title:'Baiser Long',            description:'Un baiser. Minimum 30 secondes. Pas de triche.',                           icon:'❤️', color:'#E04060' },
+  { id:'handBan',       category:'Défis & Challenges',spiceLevel:3, title:'Mains Interdites',       description:'Ce tour, aucune main autorisée. Seulement les lèvres.',                    icon:'🙅', color:'#8050B0' },
+  { id:'roleSwitch',    category:'Défis & Challenges',spiceLevel:3, title:'Inversion de Rôle',     description:"Celui qui obéissait commande. Celui qui commandait obéit. 5 minutes.",     icon:'🔄', color:'#B04050' },
+  { id:'truthTell',     category:'Défis & Challenges',spiceLevel:4, title:'Vérité Intime',          description:"Réponds honnêtement : ton fantasme le plus secret pas encore avoué.",     icon:'🔓', color:'#50A080' },
+];
+
+// ═══════════════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════════════
+
+let gs = {
+  players: [ {name:'Morgane',score:0,taps:0}, {name:'Fabien',score:0,taps:0} ],
+  isTwoPlayer: true,
+  temperature: 0,
+  phase: 'setup',           // setup | playing | eventCard | rewardTimer | exploded | victory
+  activePlayer: 0,
+  currentReward: null,
+  pendingDebt: [],
+  nextBoostDouble: false,
+  nextBoostCritical: false,
+  freezeCooling: false,
+  timerRemaining: 0,
+  isTimerActive: false,
+  tapsSinceEvent: 0,
+  nextEventIn: rng(3,5),
+  enabledEvents: new Set(EVENT_KINDS.filter(e=>e.spiceLevel<=2).map(e=>e.id)),
+  // timers
+  _cooldownId: null,
+  _countdownId: null,
+  _lastTap: 0,
+  _currentCard: null,
+  _timerTotal: 0,
+  // demo tilt for scale preview
+  _tilt: 0.42,
+  _tiltDir: 1,
+  _tiltId: null,
+};
+
+// ═══════════════════════════════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════════════════════════════
+
+function rng(a,b) { return Math.floor(Math.random()*(b-a+1))+a; }
+function rngf(a,b) { return Math.random()*(b-a)+a; }
+
+function currentReward(temp) {
+  let r=null;
+  for(const rew of REWARDS) { if(temp>=rew.threshold) r=rew; }
+  return r;
+}
+function nextReward(temp) {
+  return REWARDS.find(r=>r.threshold>temp)||null;
+}
+function progressToNext(temp) {
+  const cur=currentReward(temp), nxt=nextReward(temp);
+  if(!cur||!nxt) return temp>=990?1:0;
+  return Math.min((temp-cur.threshold)/(nxt.threshold-cur.threshold),1);
+}
+function accentForReward(r) { return r ? ACCENT_BY_INTENSITY[r.intensity]||'#FF1020' : '#FF1020'; }
+
+function computeBoost(temp) {
+  let delta;
+  if(temp<100)      delta=rngf(10,50);
+  else if(temp<300) delta=rngf(25,75);
+  else if(temp<700) delta=rngf(50,100);
+  else              delta=rngf(75,125);
+  const newTemp = Math.min(temp+delta, 1050);
+  return { delta, newTemp, isExploded: newTemp>1000 };
+}
+
+function ambientColor(temp) {
+  const t = Math.min(temp,1000)/1000;
+  const r = Math.round((0.04+t*0.18)*255);
+  const g = 0;
+  const b = Math.round((0.04-t*0.03)*255);
+  return `rgb(${r},${g},${b})`;
+}
+
+function vibrate(pattern) {
+  if(navigator.vibrate) navigator.vibrate(pattern);
+}
+
+function timeStr(s) {
+  const m=Math.floor(s/60), sec=s%60;
+  return m>0 ? `${m}:${String(sec).padStart(2,'0')}` : `${s}`;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// TAB SWITCHING (SETUP)
+// ═══════════════════════════════════════════════════════════════
+
+function switchTab(idx) {
+  ['home-tab','settings-tab'].forEach((id,i)=>{
+    document.getElementById(id).classList.toggle('active', i===idx);
+  });
+  document.getElementById('tab0').classList.toggle('active', idx===0);
+  document.getElementById('tab1').classList.toggle('active', idx===1);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// SETTINGS RENDER
+// ═══════════════════════════════════════════════════════════════
+
+function renderSettings() {
+  const categories = ['Mécaniques','Défis & Challenges'];
+  let html = '';
+  for(const cat of categories) {
+    const kinds = EVENT_KINDS.filter(e=>e.category===cat);
+    const enabled = kinds.filter(e=>gs.enabledEvents.has(e.id)).length;
+    html += `<div class="cat-header">
+      <div class="label">${cat}</div>
+      <div class="cat-count">${enabled}/${kinds.length}</div>
+    </div>`;
+    for(const k of kinds) {
+      const on = gs.enabledEvents.has(k.id);
+      const dots = Array(k.spiceLevel).fill(`<div class="spice-dot" style="background:${on?k.color+'aa':'rgba(255,255,255,0.1)'}"></div>`).join('');
+      const color = on ? k.color : 'rgba(255,255,255,0.2)';
+      html += `<div class="event-row ${on?'enabled':''}" onclick="toggleEvent('${k.id}')" data-id="${k.id}" style="border-color:${on?k.color+'33':'rgba(255,255,255,0.04)'}">
+        <div class="event-icon" style="background:${on?k.color+'26':'rgba(255,255,255,0.04)'}">
+          <span style="font-size:16px">${k.icon}</span>
+        </div>
+        <div class="event-info">
+          <div class="event-title">${k.title}</div>
+          <div class="event-desc">${k.description}</div>
+        </div>
+        <div class="spice-dots">${dots}</div>
+        <div class="toggle-track" style="background:${on?k.color+'44':'rgba(255,255,255,0.07)'}">
+          <div class="toggle-thumb" style="background:${on?k.color:'rgba(255,255,255,0.25)'};transform:translateX(${on?15:0}px)"></div>
+        </div>
+      </div>`;
+    }
+  }
+  document.getElementById('event-list').innerHTML = html;
+}
+
+function toggleEvent(id) {
+  if(gs.enabledEvents.has(id)) gs.enabledEvents.delete(id);
+  else gs.enabledEvents.add(id);
+  renderSettings();
+}
+
+function applyPreset(p) {
+  if(p==='mechanics')   gs.enabledEvents = new Set(EVENT_KINDS.filter(e=>e.category==='Mécaniques').map(e=>e.id));
+  else if(p==='all')    gs.enabledEvents = new Set(EVENT_KINDS.map(e=>e.id));
+  else if(p==='challenges') gs.enabledEvents = new Set(EVENT_KINDS.filter(e=>e.category==='Défis & Challenges').map(e=>e.id));
+  renderSettings();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// SCALE PREVIEW ANIMATION
+// ═══════════════════════════════════════════════════════════════
+
+function animateScale() {
+  gs._tilt += gs._tiltDir * 0.004;
+  if(gs._tilt>=0.72) gs._tiltDir=-1;
+  if(gs._tilt<=0.12) gs._tiltDir=1;
+  const pct = (gs._tilt*100).toFixed(1)+'%';
+  document.getElementById('scale-fill').style.width=pct;
+  document.getElementById('scale-dot').style.left=pct;
+  gs._tiltId = requestAnimationFrame(animateScale);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// BUILD SEGMENT BAR
+// ═══════════════════════════════════════════════════════════════
+
+function buildSegBar() {
+  const bar = document.getElementById('seg-bar');
+  bar.innerHTML = '';
+  for(let i=0;i<10;i++){
+    const seg=document.createElement('div'); seg.className='seg'; seg.id=`seg-${i}`;
+    const fill=document.createElement('div'); fill.className='seg-fill';
+    fill.style.background=SEG_COLORS[i]; fill.style.width='0%';
+    seg.appendChild(fill); bar.appendChild(seg);
+  }
+}
+
+function updateSegBar(temp) {
+  for(let i=0;i<10;i++){
+    const threshold=(i+1)*100;
+    const filled=temp>=threshold;
+    const partial=temp>i*100&&!filled;
+    const pf=partial?((temp-i*100)/100*100).toFixed(1)+'%':'0%';
+    const fill=document.querySelector(`#seg-${i} .seg-fill`);
+    if(fill) fill.style.width=filled?'100%':pf;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// AMBIENT
+// ═══════════════════════════════════════════════════════════════
+
+function updateAmbient(temp) {
+  const c = ambientColor(temp);
+  document.getElementById('ambient').style.background = `linear-gradient(135deg, ${c}b0, ${c})`;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// GAME LOGIC
+// ═══════════════════════════════════════════════════════════════
+
+function startGame() {
+  // Stop scale preview
+  if(gs._tiltId) { cancelAnimationFrame(gs._tiltId); gs._tiltId=null; }
+
+  gs.temperature=0; gs.activePlayer=0; gs.currentReward=null; gs.pendingDebt=[];
+  gs.nextBoostDouble=false; gs.nextBoostCritical=false; gs.freezeCooling=false;
+  gs.isTimerActive=false; gs.tapsSinceEvent=0; gs.nextEventIn=rng(1,3);
+  gs.phase='playing';
+
+  // Reset player scores
+  gs.players[0].score=0; gs.players[0].taps=0;
+  gs.players[1].score=0; gs.players[1].taps=0;
+
+  showScreen('game-screen');
+  buildSegBar();
+  renderGame();
+  startCooldown();
+}
+
+function resetToSetup() {
+  stopCooldown(); stopTimer();
+  gs.temperature=0; gs.phase='setup'; gs.currentReward=null; gs.pendingDebt=[];
+  gs.isTimerActive=false;
+  hideAllOverlays();
+  showScreen('setup-screen');
+  updateAmbient(0);
+  gs._tiltId = requestAnimationFrame(animateScale);
+}
+
+function tap(playerIdx) {
+  if(gs.phase!=='playing') return;
+  if(gs.isTwoPlayer && playerIdx!==gs.activePlayer) return;
+
+  gs._lastTap = Date.now();
+  gs.tapsSinceEvent++;
+  gs.players[playerIdx].taps++;
+
+  let result = computeBoost(gs.temperature);
+  let delta = result.delta;
+
+  if(gs.nextBoostDouble) {
+    delta = delta*2;
+    result = { delta, newTemp:Math.min(gs.temperature+delta,1050), isExploded:(gs.temperature+delta)>1000 };
+    showCritFlash();
+    vibrate([20,10,30,10,40]);
+  } else if(gs.nextBoostCritical) {
+    showCritFlash();
+    vibrate([20,10,30,10,40]);
+  } else {
+    const intensity = Math.round((Math.min(gs.temperature/1000,1)*0.8+0.2)*30);
+    vibrate(intensity);
+  }
+
+  gs.nextBoostDouble=false; gs.nextBoostCritical=false;
+
+  const prevReward = gs.currentReward;
+  gs.temperature = result.newTemp;
+  const newReward = currentReward(gs.temperature);
+
+  if(newReward && newReward.threshold !== prevReward?.threshold) {
+    gs.currentReward=newReward;
+    gs.players[playerIdx].score++;
+    if(newReward.timerDuration) {
+      startTimer(newReward.timerDuration);
+    }
+  }
+
+  showDelta(playerIdx, delta);
+
+  if(result.isExploded) {
+    gs.phase='exploded';
+    stopCooldown();
+    renderGame();
+    showExplosion(playerIdx);
+    return;
+  }
+
+  if(gs.tapsSinceEvent>=gs.nextEventIn) {
+    gs.tapsSinceEvent=0;
+    gs.nextEventIn=rng(3,5);
+    showEventCard();
+    return;
+  }
+
+  if(gs.isTwoPlayer) gs.activePlayer=1-gs.activePlayer;
+  renderGame();
+}
+
+function computeBoostActual(temp) {
+  let delta;
+  if(temp<100) delta=rngf(10,50);
+  else if(temp<300) delta=rngf(25,75);
+  else if(temp<700) delta=rngf(50,100);
+  else delta=rngf(75,125);
+  return { delta, newTemp:Math.min(temp+delta,1050), isExploded:(temp+delta)>1000 };
+}
+
+// ═══════════════════════════════════════════════════════════════
+// COOLDOWN LOOP
+// ═══════════════════════════════════════════════════════════════
+
+function startCooldown() {
+  stopCooldown();
+  gs._cooldownId = setInterval(()=>{
+    if(gs.phase!=='playing') return;
+    const idle=(Date.now()-gs._lastTap)/1000;
+    if(idle>5 && !gs.freezeCooling && gs.temperature>0) {
+      gs.temperature=Math.max(0,gs.temperature-1.0);
+      const r=currentReward(gs.temperature);
+      if(r?.threshold!==gs.currentReward?.threshold) gs.currentReward=r;
+      renderGame();
+    }
+  }, 1000);
+}
+function stopCooldown() { clearInterval(gs._cooldownId); gs._cooldownId=null; }
+
+// ═══════════════════════════════════════════════════════════════
+// REWARD TIMER
+// ═══════════════════════════════════════════════════════════════
+
+function startTimer(seconds) {
+  stopTimer();
+  gs.timerRemaining=seconds; gs.isTimerActive=true; gs._timerTotal=seconds;
+  gs.phase='rewardTimer';
+  showTimerOverlay();
+  gs._countdownId = setInterval(()=>{
+    gs.timerRemaining--;
+    if(gs.timerRemaining<=0) {
+      stopTimer();
+      gs.isTimerActive=false;
+      gs.phase='playing';
+      if(gs.isTwoPlayer) gs.activePlayer=1-gs.activePlayer;
+      hideOverlay('timer-overlay');
+      renderGame();
+      return;
+    }
+    updateTimerOverlay();
+    updateInlineTimer();
+  },1000);
+}
+function stopTimer() { clearInterval(gs._countdownId); gs._countdownId=null; }
+function dismissTimer() {
+  stopTimer(); gs.isTimerActive=false; gs.phase='playing';
+  if(gs.isTwoPlayer) gs.activePlayer=1-gs.activePlayer;
+  hideOverlay('timer-overlay');
+  renderGame();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// EVENTS
+// ═══════════════════════════════════════════════════════════════
+
+function randomEvent() {
+  let pool = EVENT_KINDS.filter(e=>gs.enabledEvents.has(e.id));
+  if(gs.temperature<300) pool=pool.filter(e=>e.spiceLevel<=2);
+  if(gs.temperature<150) pool=pool.filter(e=>e.spiceLevel<=1);
+  if(!pool.length) pool=EVENT_KINDS.filter(e=>['doubleBet','freeze','reversal'].includes(e.id));
+  return pool[Math.floor(Math.random()*pool.length)];
+}
+
+function showEventCard() {
+  gs.phase='eventCard';
+  gs._currentCard = randomEvent();
+  renderEventCard();
+  showOverlay('event-overlay');
+}
+
+function applyEvent(id) {
+  hideOverlay('event-overlay');
+  const kind = EVENT_KINDS.find(e=>e.id===id);
+  switch(id) {
+    case 'doubleBet':     gs.nextBoostDouble=true; break;
+    case 'freeze':
+      gs.freezeCooling=true;
+      setTimeout(()=>{ gs.freezeCooling=false; renderGame(); },20000);
+      break;
+    case 'forceCool':
+      gs.temperature=Math.max(0,gs.temperature-150);
+      gs.currentReward=currentReward(gs.temperature);
+      break;
+    case 'debtStack':
+      gs.pendingDebt=REWARDS.filter(r=>gs.temperature>=r.threshold);
+      break;
+    case 'joker':
+      gs.temperature=Math.min(gs.temperature+120,1050);
+      if(gs.temperature>1000){ gs.phase='exploded'; stopCooldown(); showExplosion(gs.activePlayer); renderGame(); return; }
+      break;
+    case 'reversal':
+      if(gs.isTwoPlayer) gs.activePlayer=1-gs.activePlayer;
+      break;
+    default: break; // challenge cards — display only
+  }
+  gs.phase='playing';
+  if(gs.isTwoPlayer) gs.activePlayer=1-gs.activePlayer;
+  renderGame();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// RENDER GAME
+// ═══════════════════════════════════════════════════════════════
+
+function renderGame() {
+  const temp=gs.temperature;
+  updateAmbient(temp);
+  updateSegBar(temp);
+
+  // Temp number
+  const num=document.getElementById('temp-num');
+  const unit=document.getElementById('temp-unit');
+  if(temp>0){ num.textContent=Math.min(Math.round(temp),1000); unit.style.display=''; }
+  else { num.textContent='—'; unit.style.display='none'; }
+
+  // Badges
+  renderBadges();
+
+  // Reward zone
+  renderRewardZone();
+
+  // Bottom info
+  renderBottomInfo();
+
+  // Player row
+  renderPlayerRow();
+}
+
+function renderBadges() {
+  const acc = accentForReward(gs.currentReward);
+  let html = `<button class="close-btn" onclick="resetToSetup()">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+  </button>`;
+  if(gs.nextBoostDouble) html=`<div class="badge" style="background:rgba(232,112,32,0.12);color:#E87020;border-color:rgba(232,112,32,0.3)">⬆️ <span>x2</span></div>`+html;
+  if(gs.nextBoostCritical) html=`<div class="badge" style="background:rgba(255,0,0,0.12);color:#FF1020;border-color:rgba(255,0,0,0.3)">⚡ <span>CRIT</span></div>`+html;
+  if(gs.freezeCooling) html=`<div class="badge" style="background:rgba(80,144,208,0.12);color:#5090D0;border-color:rgba(80,144,208,0.3)">❄️ <span>GEL</span></div>`+html;
+  document.getElementById('badges').innerHTML=html;
+}
+
+function rewardSFIcon(intensity) {
+  const icons={1:'🤲',2:'❤️',3:'🔥',4:'⚡',5:'⭐'};
+  return icons[intensity]||'🔥';
+}
+
+function renderRewardZone() {
+  const zone=document.getElementById('reward-zone');
+  const r=gs.currentReward;
+  if(!r){ zone.innerHTML=`<div class="idle-prompt"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round"><path d="M12 2C8 2 5 5 5 9c0 2.8 1.5 5.2 3.7 6.5C9.8 16.4 11 17.8 11 20h2c0-2.2 1.2-3.6 2.3-4.5C17.5 14.2 19 11.8 19 9c0-4-3-7-7-7z"/></svg><p>Chaque tap fait monter la température.<br>Pas que le mercure.</p></div>`; return; }
+  const acc=accentForReward(r);
+  const dots=Array(r.intensity).fill(`<div class="intensity-dot" style="background:${acc}"></div>`).join('');
+  let timerHtml='';
+  if(r.timerDuration) {
+    const isAct=gs.isTimerActive;
+    const timeDisplay=isAct?timeStr(gs.timerRemaining):timeStr(r.timerDuration);
+    timerHtml=`<div class="timer-badge" id="inline-timer" style="background:${acc}22;border-color:${acc}44;color:${isAct?acc:acc+'99'}">
+      ⏱ <span id="inline-timer-num">${timeDisplay}</span>
+      ${isAct?`<button class="timer-done-btn" onclick="dismissTimer()" style="background:${acc}33;color:${acc}">✓</button>`:''}
+    </div>`;
+  }
+  zone.innerHTML=`<div class="reward-card">
+    <div class="reward-visual" style="background:linear-gradient(135deg,${acc}33,rgba(0,0,0,0.5));border:1px solid ${acc}30;box-shadow:0 0 40px ${acc}44">
+      <span style="font-size:58px">${rewardSFIcon(r.intensity)}</span>
+      <div class="reward-intensity">${dots}</div>
+    </div>
+    <div class="reward-text">
+      <div class="reward-label">${r.label}</div>
+      <div class="reward-desc">${r.description}</div>
+      ${timerHtml}
+    </div>
+  </div>`;
+}
+
+function updateInlineTimer() {
+  const el=document.getElementById('inline-timer-num');
+  if(el) el.textContent=timeStr(gs.timerRemaining);
+}
+
+function renderBottomInfo() {
+  const bi=document.getElementById('bottom-info');
+  let html='';
+  if(gs.pendingDebt.length) {
+    html+=`<div class="debt-banner">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2M9 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2"/></svg>
+      <div><div class="debt-text-title">Dette cumulée active</div><div class="debt-text-sub">${gs.pendingDebt.length} récompenses dues simultanément</div></div>
+    </div>`;
+  }
+  const nxt=nextReward(gs.temperature);
+  if(nxt&&gs.temperature>0) {
+    const prog=progressToNext(gs.temperature);
+    const r=40; const circ=2*Math.PI*r; const dash=prog*circ;
+    const acc=accentForReward(nxt);
+    html+=`<div class="next-teaser">
+      <svg class="mini-arc" viewBox="0 0 88 88">
+        <circle cx="44" cy="44" r="${r}" fill="none" stroke="rgba(255,255,255,0.07)" stroke-width="4"/>
+        <circle cx="44" cy="44" r="${r}" fill="none" stroke="${acc}" stroke-width="4" stroke-linecap="round"
+          stroke-dasharray="${dash.toFixed(2)} ${circ.toFixed(2)}" transform="rotate(-90 44 44)" style="transition:stroke-dasharray 0.4s ease"/>
+      </svg>
+      <div class="next-info">
+        <div class="next-pre">Prochain palier</div>
+        <div class="next-label">${nxt.isSecret?'???':nxt.label}</div>
+      </div>
+      <div class="next-temp" style="color:${acc}aa">${Math.round(nxt.threshold)}°</div>
+    </div>`;
+  }
+  bi.innerHTML=html;
+}
+
+function renderPlayerRow() {
+  const row=document.getElementById('player-row');
+  const acc=accentForReward(gs.currentReward);
+  const temp=gs.temperature;
+  const sc=0.2+Math.min(temp,1000)/1000*0.8;
+  const flameColor=temp<400?'#FFA040':temp<750?'#FF4020':'#FFFFFF';
+
+  if(gs.isTwoPlayer) {
+    row.innerHTML=`
+      <button class="player-btn ${gs.activePlayer===0?'active-player':'inactive'}" onclick="tap(0)" id="pbtn0">
+        <div class="player-dot"></div>
+        <div class="player-circle">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C8 2 5 5.4 5 9.5c0 2.8 1.5 5.2 3.7 6.5C9.8 17 11 18.8 11 21h2c0-2.2 1.2-4 2.3-5C17.5 14.7 19 12.3 19 9.5 19 5.4 16 2 12 2z"/></svg>
+        </div>
+        <div class="player-name">${gs.players[0].name}</div>
+        <div class="player-score">${gs.players[0].score} palier${gs.players[0].score!==1?'s':''}</div>
+      </button>
+      <div class="flame-center">
+        <svg class="flame-svg" width="50" height="80" viewBox="0 0 50 80" style="transform:scaleY(${sc.toFixed(2)});transform-origin:bottom center">
+          <defs>
+            <linearGradient id="fg" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="${flameColor}" stop-opacity="0.9"/>
+              <stop offset="100%" stop-color="#FF2020" stop-opacity="0.7"/>
+            </linearGradient>
+          </defs>
+          <path d="M25 5 C45 30,42 55,25 75 C8 55,5 30,25 5Z" fill="url(#fg)" opacity="0.85"/>
+          <path d="M25 5 C45 30,42 55,25 75 C8 55,5 30,25 5Z" fill="none" stroke="${flameColor}" stroke-width="0.5" opacity="0.3"/>
+        </svg>
+      </div>
+      <button class="player-btn ${gs.activePlayer===1?'active-player':'inactive'}" onclick="tap(1)" id="pbtn1">
+        <div class="player-dot"></div>
+        <div class="player-circle">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C8 2 5 5.4 5 9.5c0 2.8 1.5 5.2 3.7 6.5C9.8 17 11 18.8 11 21h2c0-2.2 1.2-4 2.3-5C17.5 14.7 19 12.3 19 9.5 19 5.4 16 2 12 2z"/></svg>
+        </div>
+        <div class="player-name">${gs.players[1].name}</div>
+        <div class="player-score">${gs.players[1].score} palier${gs.players[1].score!==1?'s':''}</div>
+      </button>`;
+  } else {
+    row.innerHTML=`
+      <button class="solo-btn" onclick="tap(0)">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C8 2 5 5.4 5 9.5c0 2.8 1.5 5.2 3.7 6.5C9.8 17 11 18.8 11 21h2c0-2.2 1.2-4 2.3-5C17.5 14.7 19 12.3 19 9.5 19 5.4 16 2 12 2z" style="color:var(--red)"/></svg>
+      </button>`;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// DELTA POP ANIMATION
+// ═══════════════════════════════════════════════════════════════
+
+function showDelta(playerIdx, delta) {
+  const btnId = gs.isTwoPlayer ? `pbtn${playerIdx}` : 'player-row';
+  const parent = document.getElementById(btnId)||document.getElementById('player-row');
+  if(!parent) return;
+  const el=document.createElement('div');
+  el.className='delta-pop';
+  el.textContent=`+${Math.round(delta)}°`;
+  el.style.color=delta>150?'#FF1020':accentForReward(gs.currentReward);
+  el.style.fontSize=delta>150?'22px':'16px';
+  parent.style.position='relative';
+  parent.appendChild(el);
+  setTimeout(()=>el.remove(),1400);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// CRITICAL FLASH
+// ═══════════════════════════════════════════════════════════════
+
+function showCritFlash() {
+  const el=document.getElementById('crit-flash');
+  el.classList.add('show');
+  setTimeout(()=>el.classList.remove('show'),350);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// OVERLAYS
+// ═══════════════════════════════════════════════════════════════
+
+function showOverlay(id) { document.getElementById(id).classList.add('show'); }
+function hideOverlay(id) { document.getElementById(id).classList.remove('show'); }
+function hideAllOverlays() { ['event-overlay','timer-overlay','explosion-overlay'].forEach(hideOverlay); }
+
+function renderEventCard() {
+  const k=gs._currentCard;
+  if(!k) return;
+  const who=gs.isTwoPlayer?`${gs.players[gs.activePlayer].name} joue`:'Événement !';
+  document.getElementById('event-card-box').innerHTML=`
+    <div>
+      <div class="event-tag">CARTE ÉVÉNEMENT</div>
+      <div class="event-who">${who}</div>
+    </div>
+    <div class="event-icon-wrap" style="background:${k.color}22">
+      <span style="font-size:30px">${k.icon}</span>
+    </div>
+    <div>
+      <div class="event-title-text">${k.title}</div>
+    </div>
+    <div class="event-desc-text">${k.description}</div>
+    <button class="btn btn-accent" onclick="applyEvent('${k.id}')" style="background:${k.color};width:100%;max-width:220px">
+      Appliquer
+    </button>`;
+  // rotate card slightly
+  const rot=(Math.random()*8-4).toFixed(1);
+  document.querySelector('.event-card-box').style.transform=`rotate(${rot}deg)`;
+}
+
+function showTimerOverlay() {
+  const r=gs.currentReward;
+  const acc=accentForReward(r);
+  updateTimerOverlay();
+  showOverlay('timer-overlay');
+}
+
+function updateTimerOverlay() {
+  const r=gs.currentReward;
+  const acc=accentForReward(r);
+  const total=gs._timerTotal||1;
+  const prog=1-gs.timerRemaining/total;
+  const radius=68; const circ=2*Math.PI*radius; const dash=prog*circ;
+
+  document.getElementById('timer-overlay-box').innerHTML=`
+    ${r?`<div style="text-align:center">
+      <div class="label" style="color:${acc}99;margin-bottom:6px">RÉCOMPENSE DÉBLOQUÉE</div>
+      <div style="font-size:24px;font-style:italic;font-family:'DM Serif Display',serif">${r.label}</div>
+      <div style="font-size:13px;color:rgba(255,255,255,0.4);margin-top:4px">${r.description}</div>
+    </div>`:''}
+    <div class="timer-circle">
+      <svg viewBox="0 0 160 160">
+        <circle cx="80" cy="80" r="${radius}" fill="none" stroke="rgba(255,255,255,0.07)" stroke-width="6"/>
+        <circle cx="80" cy="80" r="${radius}" fill="none" stroke="${acc}" stroke-width="6"
+          stroke-linecap="round"
+          stroke-dasharray="${dash.toFixed(2)} ${circ.toFixed(2)}"
+          transform="rotate(-90 80 80)"
+          style="transition:stroke-dasharray 0.9s linear"/>
+      </svg>
+      <div class="timer-circle-nums">
+        <div class="timer-digits">${timeStr(gs.timerRemaining)}</div>
+        <div class="timer-label">restantes</div>
+      </div>
+    </div>
+    <div class="timer-btns">
+      <button class="btn btn-ghost" onclick="dismissTimer()">Passer</button>
+      <button class="btn btn-accent" onclick="dismissTimer()" style="background:${acc}">C'est fait ✓</button>
+    </div>`;
+}
+
+function showExplosion(culpritIdx) {
+  const name=gs.players[culpritIdx]?.name;
+  const scoresHtml=gs.isTwoPlayer?`<div class="scores-row">
+    ${gs.players.map(p=>`<div class="score-card"><div class="score-name">${p.name}</div><div class="score-val">${p.score} palier${p.score!==1?'s':''}</div></div>`).join('')}
+  </div>`:'';
+  document.getElementById('explosion-box').innerHTML=`
+    <div class="explosion-emoji">🔥</div>
+    <div class="explosion-title">TROP CHAUD</div>
+    <div class="explosion-sub">${name?`${name} a fait exploser le thermomètre.`:'Vous avez poussé trop loin.<br>La nuit vous appartient.'}</div>
+    ${scoresHtml}
+    <div class="explosion-btns">
+      <button class="btn btn-primary" onclick="hideOverlay('explosion-overlay');startGame()" style="max-width:220px">Rejouer</button>
+      <button class="btn" onclick="hideOverlay('explosion-overlay');resetToSetup()" style="color:rgba(255,255,255,0.35);font-size:13px;font-weight:600;background:none;border:none">Changer les paramètres</button>
+    </div>`;
+  showOverlay('explosion-overlay');
+}
+
+// ═══════════════════════════════════════════════════════════════
+// SCREEN SWITCHING
+// ═══════════════════════════════════════════════════════════════
+
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s=>{
+    s.classList.toggle('hidden', s.id!==id);
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════════════
+
+renderSettings();
+gs._tiltId = requestAnimationFrame(animateScale);
+</script>
+
+<!-- PWA manifest inline -->
+<script>
+const manifest = {
+  name: "HEAT — jeu de couple",
+  short_name: "HEAT",
+  start_url: ".",
+  display: "fullscreen",
+  background_color: "#0a0004",
+  theme_color: "#0a0004",
+  orientation: "portrait",
+  icons: [{
+    src: "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect width='512' height='512' fill='%230a0004'/><text y='340' x='100' font-size='300' fill='%23FF1020'>🔥</text></svg>",
+    sizes: "512x512", type: "image/svg+xml"
+  }]
+};
+const blob = new Blob([JSON.stringify(manifest)],{type:'application/json'});
+const url = URL.createObjectURL(blob);
+const link = document.createElement('link');
+link.rel='manifest'; link.href=url;
+document.head.appendChild(link);
+</script>
+
+</body>
+</html>
